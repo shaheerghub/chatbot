@@ -1,118 +1,147 @@
 # nlp_model.py
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from training_data import training_data
+from sklearn.pipeline import Pipeline
+from sklearn.calibration import CalibratedClassifierCV
 import re
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
+from training_data import training_data
 
 # ---------------------------
-# 1️⃣ Preprocess Training Data
+# 1️⃣ Configuration
+# ---------------------------
+CONFIDENCE_THRESHOLD = 0.6
+
+# ---------------------------
+# 2️⃣ Text Preprocessing
 # ---------------------------
 def clean_text(text):
     text = text.lower()
-    text = re.sub(r'[^a-z0-9 ]', '', text)   # remove punctuation
-    text = re.sub(r'\d+', 'number', text)    # replace numbers with 'number' token
+    text = re.sub(r'[^a-z0-9\-/ ]', '', text)  # keep - and /
     return text
 
-texts = [clean_text(d['text']) for d in training_data]
-labels = [d['intent'] for d in training_data]
+# ---------------------------
+# 3️⃣ Train Model
+# ---------------------------
+def train_model(training_data):
+    texts = [clean_text(d['text']) for d in training_data]
+    labels = [d['intent'] for d in training_data]
+
+    pipeline = Pipeline([
+        ('tfidf', TfidfVectorizer(ngram_range=(1,3), max_features=5000)),
+        ('clf', CalibratedClassifierCV(LogisticRegression(max_iter=1000), cv=3))
+    ])
+
+    pipeline.fit(texts, labels)
+    return pipeline
 
 # ---------------------------
-# 2️⃣ Vectorizer & Classifier
+# 4️⃣ Rule-based Intent Booster
 # ---------------------------
-vectorizer = TfidfVectorizer(ngram_range=(1,2), stop_words='english', max_features=3000)
-X = vectorizer.fit_transform(texts)
+def rule_based_intent(text):
+    text_lower = text.lower()
 
-clf = LogisticRegression(max_iter=1000, solver='lbfgs')
-clf.fit(X, labels)
+    if re.search(r'\b(user|employee|person)\b', text_lower):
+        return 'get_user'
+
+    if re.search(r'\b(request|pr|purchase)\b', text_lower):
+        return 'get_request'
+
+    if re.search(r'\b(total|sum|amount)\b', text_lower):
+        return 'get_total'
+
+    return None
 
 # ---------------------------
-# 3️⃣ Entity Extraction
+# 5️⃣ Entity Extraction
 # ---------------------------
 def extract_entities(text, intent):
     entities = {}
     text_lower = text.lower()
 
-    # --- Status ---
-    if "cancelled" in text_lower or "canceled" in text_lower:
-        entities['status'] = "cancelled"
-    elif "pending" in text_lower:
-        entities['status'] = "pending"
-    elif "completed" in text_lower or "done" in text_lower:
-        entities['status'] = "completed"
+    # Status
+    if 'cancel' in text_lower:
+        entities['status'] = 'cancelled'
+    elif 'pending' in text_lower:
+        entities['status'] = 'pending'
+    elif 'complete' in text_lower or 'done' in text_lower:
+        entities['status'] = 'completed'
 
-    # --- Timeframe ---
+    # Timeframes
     today = date.today()
-    if "today" in text_lower:
-        entities['timeframe'] = "today"
+
+    if 'today' in text_lower:
         entities['date'] = str(today)
-    elif "this week" in text_lower:
-        start_week = today - timedelta(days=today.weekday())
-        end_week = start_week + timedelta(days=6)
-        entities['timeframe'] = "this_week"
-        entities['start_date'] = str(start_week)
-        entities['end_date'] = str(end_week)
-    elif "this month" in text_lower:
-        start_month = today.replace(day=1)
-        end_month = (start_month.replace(month=start_month.month % 12 + 1, day=1) - timedelta(days=1)) \
-                    if start_month.month != 12 else today.replace(day=31)
-        entities['timeframe'] = "this_month"
-        entities['start_date'] = str(start_month)
-        entities['end_date'] = str(end_month)
-    elif "this year" in text_lower:
-        start_year = today.replace(month=1, day=1)
-        end_year = today.replace(month=12, day=31)
-        entities['timeframe'] = "this_year"
-        entities['start_date'] = str(start_year)
-        entities['end_date'] = str(end_year)
+    elif 'this week' in text_lower:
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=6)
+        entities['start_date'] = str(start)
+        entities['end_date'] = str(end)
+    elif 'this month' in text_lower:
+        start = today.replace(day=1)
+        end = (start.replace(month=start.month % 12 + 1, day=1) - timedelta(days=1)) if start.month != 12 else today.replace(day=31)
+        entities['start_date'] = str(start)
+        entities['end_date'] = str(end)
 
-    # --- Specific date (YYYY-MM-DD) ---
-    date_match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
-    if date_match:
-        entities['date'] = date_match.group(1)
-
-    # --- User Extraction ---
-    if intent == 'get_user':
-        match = re.search(r'get user (.+)', text, re.IGNORECASE)
-        if match:
-            entities['user_name'] = match.group(1).strip()
-
-    # --- Request Number Extraction ---
+    # --- Request Number Extraction (robust) ---
     if intent == 'get_request':
-        match = re.search(r'(?:request|get)?\s*([\w\-/]+)', text, re.IGNORECASE)
+        # Match sequences that look like request numbers:
+        # 2026D22755, AD-2025/342, NM/HP/765, 12345
+        match = re.search(r'(?:request|get|details|get details)?\s*([A-Z0-9\-\/]+)', text, re.IGNORECASE)
         if match:
             entities['request_no'] = match.group(1).strip()
 
-    # --- Numbers in general (like PR number or quantity) ---
-    numbers = re.findall(r'\d+', text)
-    if numbers:
-        entities['numbers'] = numbers
+    # User extraction
+    if intent == 'get_user':
+        match = re.search(r'(?:user|employee)\s+([a-zA-Z ]+)', text)
+        if match:
+            entities['user_name'] = match.group(1).strip()
 
     return entities
 
 # ---------------------------
-# 4️⃣ Predict Intent
+# 6️⃣ NLP Processor
 # ---------------------------
-def predict_intent(text):
-    text_clean = clean_text(text)
-    intent = clf.predict(vectorizer.transform([text_clean]))[0]
-    entities = extract_entities(text, intent)
-    return intent, entities
+class NLPProcessor:
+    def __init__(self, training_data):
+        self.model = train_model(training_data)
+
+    def predict(self, text):
+        rule_intent = rule_based_intent(text)
+        cleaned = clean_text(text)
+
+        probs = self.model.predict_proba([cleaned])[0]
+        classes = self.model.classes_
+        ml_intent = classes[probs.argmax()]
+        confidence = max(probs)
+
+        # Hybrid decision
+        if rule_intent:
+            intent = rule_intent
+        elif confidence >= CONFIDENCE_THRESHOLD:
+            intent = ml_intent
+        else:
+            intent = 'fallback'
+
+        entities = extract_entities(text, intent)
+        return intent, entities, confidence
 
 # ---------------------------
-# Example Usage
+# 7️⃣ Example Usage
 # ---------------------------
-if __name__ == "__main__":
+if __name__ == '__main__':
+    bot = NLPProcessor(training_data)
+
     queries = [
-        "Show total purchases today",
-        "Get user John Doe",
-        "Pending PRs this week",
-        "Get request 2026-DN/266",
-        "Completed requests this month"
+        'Show pending requests this week',
+        'Get user John Doe',
+        'Find request 2026-DN/266',
+        'Total completed purchases this month'
     ]
 
     for q in queries:
-        intent, entities = predict_intent(q)
-        print(f"Query: {q}")
-        print(f"Intent: {intent}")
-        print(f"Entities: {entities}\n")
+        intent, entities, conf = bot.predict(q)
+        print(f'Query: {q}')
+        print(f'Intent: {intent}')
+        print(f'Confidence: {conf}')
+        print(f'Entities: {entities}\n')

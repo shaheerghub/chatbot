@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ProcureAI — Purchase Management Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style/styles.css" />
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <!-- ═══════════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          </div>
+          <span class="brand-name">ProcureAI</span>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Model Selector -->
+      <div class="sidebar-section">
+        <label class="section-label">Active Module</label>
+        <div class="model-selector">
+          <select id="modelSelect" class="model-select">
+            <option value="purchase">📦 Purchase System</option>
+            <option value="erp">🏢 ERP Core</option>
+            <option value="effism">⚡ Effism AI</option>
+            <option value="vendor">🤝 Vendor Portal</option>
+            <option value="finance">💳 Finance Suite</option>
+          </select>
+          <div class="select-arrow">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="sidebar-section">
+        <label class="section-label">Quick Actions</label>
+        <div class="quick-actions">
+          <button class="qa-btn" data-prompt="Create a new purchase request">
+            <span class="qa-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            Create Request
+          </button>
+          <button class="qa-btn" data-prompt="Show me all pending approvals">
+            <span class="qa-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </span>
+            Pending Approvals
+          </button>
+          <button class="qa-btn" data-prompt="Check status of latest invoice">
+            <span class="qa-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </span>
+            Check Invoice
+          </button>
+          <button class="qa-btn" data-prompt="List all active vendors">
+            <span class="qa-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            View Vendors
+          </button>
+          <button class="qa-btn" data-prompt="Show payment schedule for this month">
+            <span class="qa-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </span>
+            Payment Schedule
+          </button>
+          <button class="qa-btn" data-prompt="Generate purchase summary report">
+            <span class="qa-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </span>
+            Summary Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Session Info -->
+      <div class="sidebar-footer">
+        <div class="session-info">
+          <div class="session-user">
+            <div class="user-avatar">JD</div>
+            <div class="user-meta">
+              <span class="user-name">John Doe</span>
+              <span class="user-role">Procurement Manager</span>
+            </div>
+          </div>
+          <button class="clear-btn" id="clearBtn" title="Clear conversation">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN CHAT PANEL
+    ═══════════════════════════════════════════ -->
+    <main class="chat-panel">
+
+      <!-- Top Bar -->
+      <header class="chat-header">
+        <button class="mobile-menu-btn" id="mobileMenuBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="chat-header-info">
+          <div class="bot-status">
+            <span class="status-dot"></span>
+            <span class="status-label">Purchase System</span>
+          </div>
+          <span class="chat-subtitle">AI Command Interface · Session #4821</span>
+        </div>
+        <div class="header-actions">
+          <span class="module-badge" id="moduleBadge">Purchase System</span>
+        </div>
+      </header>
+<div id="toast" class="toast"></div>
+      <!-- Message Area -->
+      <div class="messages-area" id="messagesArea">
+        <div class="messages-inner" id="messagesInner">
+
+          <!-- Welcome banner -->
+          <div class="welcome-banner">
+            <div class="welcome-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1="12" y1="22.08" x2="12" y2="12"/>
+              </svg>
+            </div>
+            <h2 class="welcome-title">ProcureAI Assistant</h2>
+            <p class="welcome-sub">Connected to <strong>Purchase Management System</strong>. Use natural language or quick actions to manage requests, approvals, invoices, vendors, and payments.</p>
+          </div>
+
+          <!-- Messages are injected here by JS -->
+        </div>
+      </div>
+
+      <!-- Typing Indicator -->
+      <div class="typing-bar" id="typingBar">
+        <div class="typing-bubble">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+        <span class="typing-label">ProcureAI is processing…</span>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <div class="input-wrapper">
+          <textarea
+            id="chatInput"
+            class="chat-input"
+            placeholder="Type a command or question… e.g. 'Show pending approvals'"
+            rows="1"
+            autocomplete="off"
+          ></textarea>
+          <div class="input-actions">
+            <button class="voice-btn" title="Voice input (coming soon)" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+            <button class="send-btn" id="sendBtn" title="Send message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</p>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

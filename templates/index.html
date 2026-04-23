@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <title>Purchase Chatbot</title>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -185,6 +186,53 @@
             border-radius: 5px;
         }
 
+        /* Table Styles for structured data */
+        .table-container {
+            width: 100%;
+            background: var(--surface-2);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            font-size: 13px;
+        }
+
+        .table-container table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-container th {
+            background: linear-gradient(135deg, var(--surface-2), var(--border));
+            padding: 12px 14px;
+            text-align: left;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table-container td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .table-container tr:nth-child(even) td {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .table-container .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(52,211,153,0.2);
+            color: var(--success);
+            border: 1px solid rgba(52,211,153,0.3);
+        }
+
         /* ── Typing indicator ── */
         .typing-indicator {
             display: flex;
@@ -362,8 +410,32 @@
 </div>
 
 <script>
-    // Auto-resize textarea
     const msgInput = document.getElementById('message');
+    const sendButton = document.getElementById('send');
+    const chatbox = document.getElementById('chatbox');
+    const AUTH_STATUS_URL = '/auth/status';
+    const AUTH_URL = '/authenticate';
+    const CHAT_URL = '/chat';
+
+    const authState = {
+        authenticated: false,
+        pendingMessage: null,
+    };
+
+    async function checkAuthStatus() {
+        try {
+            const res = await fetch(AUTH_STATUS_URL, {
+                credentials: 'include'
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            authState.authenticated = Boolean(data.authenticated);
+        } catch (err) {
+            console.warn('Auth status check failed:', err);
+        }
+    }
+
+    // Auto-resize textarea
     msgInput.addEventListener('input', function () {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 120) + 'px';
@@ -373,7 +445,7 @@
     msgInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            document.getElementById('send').click();
+            sendButton.click();
         }
     });
 
@@ -382,10 +454,7 @@
         msgInput.focus();
     }
 
-    function appendMessage(role, text) {
-        const chatbox = document.getElementById('chatbox');
-
-        // Remove welcome block on first message
+    function appendMessage(role, responseData) {
         const welcome = chatbox.querySelector('.welcome');
         if (welcome) welcome.remove();
 
@@ -398,7 +467,59 @@
 
         const bubble = document.createElement('div');
         bubble.className = `bubble ${role}`;
-        bubble.innerHTML = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        if (role === 'bot' && typeof responseData === 'object' && responseData.type === 'table') {
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+
+            if (responseData.title) {
+                const title = document.createElement('h4');
+                title.textContent = responseData.title;
+                title.style.margin = '0 0 12px 0';
+                title.style.color = 'var(--text)';
+                title.style.fontSize = '14px';
+                title.style.fontWeight = '600';
+                tableContainer.appendChild(title);
+            }
+
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
+
+            const headerRow = document.createElement('tr');
+            responseData.columns.forEach(col => {
+                const th = document.createElement('th');
+                th.textContent = col.label;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            responseData.rows.forEach(rowData => {
+                const tr = document.createElement('tr');
+                responseData.columns.forEach(col => {
+                    const td = document.createElement('td');
+                    let value = rowData[col.key] || '—';
+                    if (col.key.includes('status') && typeof value === 'string') {
+                        const badge = document.createElement('span');
+                        badge.className = 'status-badge';
+                        badge.textContent = value;
+                        td.appendChild(badge);
+                    } else {
+                        td.textContent = value;
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+            bubble.appendChild(tableContainer);
+        } else {
+            const safeText = DOMPurify.sanitize(String(responseData || ''));
+            bubble.innerHTML = safeText.replace(/`([^`]+)`/g, '<code>$1</code>');
+        }
 
         row.appendChild(avatar);
         row.appendChild(bubble);
@@ -406,8 +527,121 @@
         chatbox.scrollTop = chatbox.scrollHeight;
     }
 
+    function showLoginForm(errorMessage) {
+        if (document.getElementById('login-row')) {
+            const errorEl = document.querySelector('.login-error');
+            if (errorEl) errorEl.textContent = errorMessage || '';
+            return;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'message-row bot';
+        row.id = 'login-row';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar bot';
+        avatar.textContent = '🤖';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble bot';
+        bubble.innerHTML = `
+            <div class="login-form">
+                <div>
+                    <strong>Sign in to continue</strong>
+                </div>
+                <input id="login-username" type="text" placeholder="Username" autocomplete="username" />
+                <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" />
+                <button type="button" id="auth-button" class="auth-button">Authenticate</button>
+                <div class="login-error">${DOMPurify.sanitize(errorMessage || '')}</div>
+            </div>
+        `;
+
+        row.appendChild(avatar);
+        row.appendChild(bubble);
+        chatbox.appendChild(row);
+        chatbox.scrollTop = chatbox.scrollHeight;
+
+        const authButton = document.getElementById('auth-button');
+        authButton.addEventListener('click', authenticateFromForm);
+
+        const loginUsername = document.getElementById('login-username');
+        const loginPassword = document.getElementById('login-password');
+
+        [loginUsername, loginPassword].forEach(el => {
+            if (el) el.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    authenticateFromForm();
+                }
+            });
+        });
+    }
+
+    function removeLoginForm() {
+        const row = document.getElementById('login-row');
+        if (row) row.remove();
+    }
+
+    function setLoginError(text) {
+        const errorEl = document.querySelector('.login-error');
+        if (errorEl) {
+            errorEl.textContent = text;
+        }
+    }
+
+    async function authenticateFromForm() {
+        const loginRow = document.getElementById('login-row');
+        if (!loginRow) return;
+
+        const usernameInput = document.getElementById('login-username');
+        const passwordInput = document.getElementById('login-password');
+        const authButton = document.getElementById('auth-button');
+
+        const username = usernameInput?.value.trim() || '';
+        const password = passwordInput?.value || '';
+
+        if (!username || !password) {
+            setLoginError('Username and password are required.');
+            return;
+        }
+
+        authButton.disabled = true;
+        const originalText = authButton.textContent;
+        authButton.textContent = 'Authenticating...';
+        setLoginError('');
+
+        try {
+            const res = await fetch(AUTH_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                setLoginError(data.message || 'Authentication failed.');
+                return;
+            }
+
+            authState.authenticated = true;
+            removeLoginForm();
+            appendMessage('bot', '✅ You are now logged in. Sending your request...');
+
+            if (authState.pendingMessage) {
+                const nextMessage = authState.pendingMessage;
+                authState.pendingMessage = null;
+                await sendChatMessage(nextMessage);
+            }
+        } catch (err) {
+            setLoginError('Network error while authenticating.');
+        } finally {
+            authButton.disabled = false;
+            authButton.textContent = originalText;
+        }
+    }
+
     function showTyping() {
-        const chatbox = document.getElementById('chatbox');
         const row = document.createElement('div');
         row.className = 'message-row bot';
         row.id = 'typing-row';
@@ -431,30 +665,50 @@
         if (el) el.remove();
     }
 
-    document.getElementById('send').addEventListener('click', async function () {
-        const input = document.getElementById('message');
-        const text = input.value.trim();
-        if (!text) return;
-
-        appendMessage('user', text);
-        input.value = '';
-        input.style.height = 'auto';
+    async function sendChatMessage(text) {
         showTyping();
-
         try {
-            const res = await fetch('/chat', {
+            const res = await fetch(CHAT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ message: text })
             });
             const data = await res.json();
             hideTyping();
+
+            if (res.status === 401 || data.error === 'auth_required') {
+                authState.authenticated = false;
+                authState.pendingMessage = text;
+                showLoginForm('Please sign in to continue.');
+                return;
+            }
+
             appendMessage('bot', data.response || 'No response received.');
         } catch (err) {
             hideTyping();
             appendMessage('bot', '⚠️ Connection error. Please try again.');
         }
+    }
+
+    sendButton.addEventListener('click', async function () {
+        const text = msgInput.value.trim();
+        if (!text) return;
+
+        appendMessage('user', text);
+        msgInput.value = '';
+        msgInput.style.height = 'auto';
+
+        if (!authState.authenticated) {
+            authState.pendingMessage = text;
+            showLoginForm('Please sign in to continue.');
+            return;
+        }
+
+        await sendChatMessage(text);
     });
+
+    checkAuthStatus();
 </script>
 
 </body>
